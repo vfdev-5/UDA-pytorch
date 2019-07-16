@@ -1,0 +1,13 @@
+name: UDA-PyTorch
+
+conda_env: conda.yaml
+
+entry_points:
+
+  main:
+    parameters:      
+      dataset: string
+      network: string
+      params: string
+
+    command: "PYTHONPATH=../code:$PYTHONPATH python ../code/main.py {dataset} {network} --params {params}"

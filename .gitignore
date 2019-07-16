@@ -1,0 +1,111 @@
+# Created by https://www.gitignore.io/api/python, and modified...
+
+
+## Custom ignores
+/input
+/output
+/results/*
+*.lmdb
+*.binproto
+*.binaryproto
+*.caffemodel
+*.solverstate
+train.txt*
+val.txt*
+labels.txt*
+*.gz
+/tmp/*.npz
+*.pth
+resources/*.h5
+
+*.spyproject
+*.txt
+*.cmd
+*.bat
+
+## Linux backup files
+*~
+
+## Arhives
+*.zip
+
+### Mac OS X stuff ###
+Desktop DF
+Desktop DB
+.Spotlight-V100
+.DS_Store
+.Trashes
+.com.apple.timemachine.supported
+.fseventsd
+.syncinfo
+.TemporaryItems
+report/
+
+### Python ###
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# C extensions
+*.so
+
+# Distribution / packaging
+.Python
+env/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# PyInstaller
+#  Usually these files are written by a python script from a template
+#  before PyInstaller builds the exe, so as to inject date/other infos into it.
+*.manifest
+MANIFEST
+*.spec
+
+# Installer logs
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Unit test / coverage reports
+htmlcov/
+.tox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*,cover
+.hypothesis/
+
+# Translations
+*.mo
+*.pot
+
+# Sphinx documentation
+docs/_build/
+
+# PyBuilder
+target/
+
+# IPython Notebook
+.ipynb_checkpoints
+
+# pyenv
+.python-version
+
+# Idea
+.idea
+*.iml
