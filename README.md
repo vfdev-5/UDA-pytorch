@@ -56,3 +56,6 @@ All experiments are also logged to the Tensorboard. To visualize the experiments
 tensorboard --logdir=$OUTPUT_PATH/mlruns/1
 ```
 
+### Acknowledgements
+
+In this repository we are using code from [DeepVoltaire/AutoAugment](https://github.com/DeepVoltaire/AutoAugment) and thank the author for sharing the code!
