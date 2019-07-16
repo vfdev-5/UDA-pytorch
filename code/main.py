@@ -13,6 +13,7 @@ from functools import partial
 import torch
 import torch.nn as nn
 import torch.optim as optim
+from torch.optim.lr_scheduler import CosineAnnealingLR
 
 import ignite
 from ignite.engine import Events, Engine, create_supervised_evaluator
@@ -22,8 +23,6 @@ from ignite.utils import convert_tensor
 from ignite.contrib.handlers import TensorboardLogger, ProgressBar
 from ignite.contrib.handlers.tensorboard_logger import OutputHandler as tbOutputHandler, \
     OptimizerParamsHandler as tbOptimizerParamsHandler
-
-from ignite.contrib.handlers import PiecewiseLinear
 
 import mlflow
 
@@ -47,17 +46,24 @@ def run(output_path, config):
     model = get_model(config['model'])
     model = model.to(device)
     
-    optimizer = optim.SGD(model.parameters(), lr=0.0,
+    optimizer = optim.SGD(model.parameters(), lr=config['learning_rate'],
                           momentum=config['momentum'],
                           weight_decay=config['weight_decay'],
                           nesterov=True)
     
     criterion = nn.CrossEntropyLoss()
-    consistency_criterion = nn.MSELoss()
+    if config['consistency_criterion'] == "MSE":
+        consistency_criterion = nn.MSELoss()
+    elif config['consistency_criterion'] == "KL":
+        consistency_criterion = nn.KLDivLoss(reduction='batchmean')
+    else:
+        raise RuntimeError("Unknown consistency criterion {}".format(config['consistency_criterion']))
 
-    le = len(train_labelled_loader)
-    milestones_values = [(le * m, v) for m, v in config['lr_milestones_values']]
-    scheduler = PiecewiseLinear(optimizer, "lr", milestones_values=milestones_values)
+    num_train_steps = len(train_labelled_loader) * config['num_epochs']
+    mlflow.log_param("num train steps", num_train_steps)
+
+    eta_min = config['learning_rate'] * config['min_lr_ratio']
+    scheduler = CosineAnnealingLR(optimizer, T_max=num_train_steps, eta_min=eta_min)
 
     def _prepare_batch(batch, device, non_blocking):
         x, y = batch
@@ -73,7 +79,7 @@ def run(output_path, config):
 
     lam = config['consistency_lambda']
     
-    tsa = TrainingSignalAnnealing(num_steps=len(train_labelled_loader) * config['num_epochs'],
+    tsa = TrainingSignalAnnealing(num_steps=num_train_steps,
                                   min_threshold=config['TSA_proba_min'], 
                                   max_threshold=config['TSA_proba_max'])
 
@@ -89,7 +95,7 @@ def run(output_path, config):
         model.train()
         # Supervised part        
         y_pred = model(x)
-        loss = criterion(y_pred, y)        
+        loss = criterion(y_pred, y)
 
         supervised_loss = loss
         step = engine.state.iteration - 1
@@ -105,9 +111,13 @@ def run(output_path, config):
             supervised_loss = new_loss
 
         # Unsupervised part
-        y_pred_a = model(unsup_x)
-        y_pred_b = model(unsup_aug_x)
-        consistency_loss = consistency_criterion(y_pred_a, y_pred_b)
+        unsup_orig_y_pred = model(unsup_x).detach()
+        unsup_orig_y_probas = torch.softmax(unsup_orig_y_pred, dim=-1)
+
+        unsup_aug_y_pred = model(unsup_aug_x)
+        unsup_aug_y_probas = torch.log_softmax(unsup_aug_y_pred, dim=-1)
+
+        consistency_loss = consistency_criterion(unsup_aug_y_probas, unsup_orig_y_probas)
 
         final_loss = supervised_loss + lam * consistency_loss
 
@@ -132,9 +142,14 @@ def run(output_path, config):
             mlflow.log_metric("Original X Loss", engine.state.tsa_log['loss'], step=step)
             mlflow.log_metric("TSA X Loss", engine.state.tsa_log['tsa_loss'], step=step)
 
+    trainer.add_event_handler(Events.ITERATION_COMPLETED, lambda engine: scheduler.step())
 
-
-    trainer.add_event_handler(Events.ITERATION_COMPLETED, scheduler)
+    @trainer.on(Events.ITERATION_STARTED)
+    def log_learning_rate(engine):
+        step = engine.state.iteration - 1
+        if step % 50 == 0:
+            lr = optimizer.param_groups[0]['lr']
+            mlflow.log_metric("learning rate", lr, step=step)
 
     metric_names = [
         'supervised batch loss',
@@ -148,7 +163,7 @@ def run(output_path, config):
     for n in metric_names:
         RunningAverage(output_transform=partial(output_transform, name=n), epoch_bound=False).attach(trainer, n)
 
-    ProgressBar(persist=False).attach(trainer, metric_names=metric_names)
+    # ProgressBar(persist=False).attach(trainer, metric_names=metric_names)
 
     ProgressBar(persist=True, bar_format="").attach(trainer,
                                                     event_name=Events.EPOCH_STARTED,
@@ -248,10 +263,13 @@ if __name__ == "__main__":
         "num_workers": 10,
 
         "num_epochs": num_epochs,
-
-        "lr_milestones_values": [(0, 0.0), (5, 1.0), (num_epochs, 0.0)],
         
+        "learning_rate": 0.03,
+        "min_lr_ratio": 0.004,
+
         "num_labelled_samples": 4000,
+        "consistency_lambda": 1.0,
+        "consistency_criterion": "KL",
 
         "with_TSA": True,
         "TSA_proba_min": 0.1,

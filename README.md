@@ -45,8 +45,16 @@ Start a single run
 
 ```
 export MLFLOW_TRACKING_URI=$OUTPUT_PATH/mlruns
-mlflow run experiments/ --experiment-name=CIFAR10 -P dataset=CIFAR10 -P network=fastresnet -P params="data_path=../input/cifar10;lr_milestones_values=[(0, 0.0), (4, 1.0), (num_epochs, 0.0)]"
+
+mlflow run experiments/ --experiment-name=CIFAR10 -P dataset=CIFAR10 -P network=fastresnet -P params="data_path=../input/cifar10;num_epochs=100;learning_rate=0.01;batch_size=512;TSA_proba_min=0.2"
 ```
+
+Current implementation :
+- Model : FastResnet inspired from [cifar10-fast repository](https://github.com/davidcpage/cifar10-fast) (original paper uses Wide-ResNet)
+- Consistency loss: KL
+- Data augs: AutoAugment + Cutout
+- Cosine LR decay
+- Training Signal Annealing
 
 ### Tensorboard 
 
@@ -56,6 +64,10 @@ All experiments are also logged to the Tensorboard. To visualize the experiments
 tensorboard --logdir=$OUTPUT_PATH/mlruns/1
 ```
 
-### Acknowledgements
+## Acknowledgements
 
-In this repository we are using code from [DeepVoltaire/AutoAugment](https://github.com/DeepVoltaire/AutoAugment) and thank the author for sharing the code!
+In this repository we are using the code from 
+- [DeepVoltaire/AutoAugment](https://github.com/DeepVoltaire/AutoAugment) 
+- [cifar10-fast repository](https://github.com/davidcpage/cifar10-fast)
+
+Thanks to the authors for sharing their code!

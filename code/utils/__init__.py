@@ -23,7 +23,7 @@ def set_seed(seed):
     np.random.seed(seed)
 
 
-def get_train_test_loaders(dataset_name, path, num_labelled_samples, batch_size, num_workers, unlabelled_batch_size=None):
+def get_train_test_loaders(dataset_name, path, num_labelled_samples, batch_size, num_workers, unlabelled_batch_size=None, pin_memory=True):
 
     if "cifar" in dataset_name.lower():
         train_ds, test_ds, num_classes = get_cifar_train_test_datasets(dataset_name, path)
@@ -70,10 +70,10 @@ def get_train_test_loaders(dataset_name, path, num_labelled_samples, batch_size,
     if unlabelled_batch_size is None:
         unlabelled_batch_size = batch_size
 
-    train_labelled_loader = DataLoader(train_labelled_ds, batch_size=batch_size, num_workers=num_workers, pin_memory=True)
-    train_unlabelled_loader = DataLoader(train_unlabelled_ds, batch_size=unlabelled_batch_size, num_workers=num_workers, pin_memory=True)
+    train_labelled_loader = DataLoader(train_labelled_ds, batch_size=batch_size, num_workers=num_workers, pin_memory=pin_memory)
+    train_unlabelled_loader = DataLoader(train_unlabelled_ds, batch_size=unlabelled_batch_size, num_workers=num_workers, pin_memory=pin_memory)
 
-    test_loader = DataLoader(test_ds, batch_size=batch_size * 2, num_workers=num_workers, pin_memory=True)
+    test_loader = DataLoader(test_ds, batch_size=batch_size * 2, num_workers=num_workers, pin_memory=pin_memory)
 
     return train_labelled_loader, train_unlabelled_loader, test_loader
 
