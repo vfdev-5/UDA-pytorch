@@ -155,13 +155,3 @@ def stratified_train_labelled_unlabelled_split(ds, num_labelled_samples, num_cla
     train_labelled_ds = Subset(ds, labelled_indices)
     train_unlabelled_ds = Subset(ds, unlabelled_indices)
     return train_labelled_ds, train_unlabelled_ds
-
-
-# def get_augmentation(name):
-#     t = None
-#     if name in autoaugment.__dict__:
-#         t = autoaugment.__dict__[name]
-#     else:
-#         raise RuntimeError("Unknown augmentation {}".format(name))
-
-#     return t()
