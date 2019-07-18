@@ -69,6 +69,14 @@ export MLFLOW_TRACKING_URI=$OUTPUT_PATH/mlruns
 mlflow run experiments/ --experiment-name=CIFAR10 -P dataset=CIFAR10 -P network=wideresnet -P params="data_path=../input/cifar10;num_epochs=100;learning_rate=0.1;batch_size=512;TSA_proba_min=0.1;unlabelled_batch_size=1024"
 ```
 
+##### Paper's configuration
+
+```
+export MLFLOW_TRACKING_URI=$OUTPUT_PATH/mlruns
+
+mlflow run experiments/ --experiment-name=CIFAR10 -P dataset=CIFAR10 -P network=wideresnet -P params="data_path=../input/cifar10;num_epochs=6250;learning_rate=0.03;batch_size=64;TSA_proba_min=0.1;unlabelled_batch_size=320"
+```
+
 ### Tensorboard 
 
 All experiments are also logged to the Tensorboard. To visualize the experiments, please install `tensorboard` and run :

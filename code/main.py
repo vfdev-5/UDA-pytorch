@@ -7,6 +7,7 @@ import argparse
 import traceback
 from pathlib import Path
 import tempfile
+import math
 
 from functools import partial
 
@@ -23,6 +24,8 @@ from ignite.utils import convert_tensor
 from ignite.contrib.handlers import TensorboardLogger, ProgressBar
 from ignite.contrib.handlers.tensorboard_logger import OutputHandler as tbOutputHandler, \
     OptimizerParamsHandler as tbOptimizerParamsHandler
+
+from ignite.contrib.handlers import create_lr_scheduler_with_warmup
 
 import mlflow
 
@@ -59,11 +62,19 @@ def run(output_path, config):
     else:
         raise RuntimeError("Unknown consistency criterion {}".format(config['consistency_criterion']))
 
-    num_train_steps = len(train_labelled_loader) * config['num_epochs']
+    le = len(train_labelled_loader)
+    num_train_steps = le * config['num_epochs']
     mlflow.log_param("num train steps", num_train_steps)
 
-    eta_min = config['learning_rate'] * config['min_lr_ratio']
-    scheduler = CosineAnnealingLR(optimizer, T_max=num_train_steps, eta_min=eta_min)
+    lr = config['learning_rate']
+    eta_min = lr * config['min_lr_ratio']
+    num_warmup_steps = config['num_warmup_steps']
+
+    cosine_lr_decay = CosineAnnealingLR(optimizer, eta_min=eta_min, T_max=num_train_steps - num_warmup_steps)
+    lr_scheduler = create_lr_scheduler_with_warmup(cosine_lr_decay,
+                                                   warmup_start_value=0.0,
+                                                   warmup_end_value=lr * (1.0 + 1.0 / num_warmup_steps),
+                                                   warmup_duration=num_warmup_steps)
 
     def _prepare_batch(batch, device, non_blocking):
         x, y = batch
@@ -149,8 +160,8 @@ def run(output_path, config):
                 mlflow.log_metric("TSA selection", engine.state.tsa_log['new_y_pred'].shape[0], step=step)
                 mlflow.log_metric("Original X Loss", engine.state.tsa_log['loss'], step=step)
                 mlflow.log_metric("TSA X Loss", engine.state.tsa_log['tsa_loss'], step=step)
-
-    trainer.add_event_handler(Events.ITERATION_COMPLETED, lambda engine: scheduler.step())
+    
+    trainer.add_event_handler(Events.ITERATION_STARTED, lr_scheduler)
 
     @trainer.on(Events.ITERATION_STARTED)
     def log_learning_rate(engine):
@@ -274,6 +285,7 @@ if __name__ == "__main__":
         
         "learning_rate": 0.03,
         "min_lr_ratio": 0.004,
+        "num_warmup_steps": 20000,
 
         "num_labelled_samples": 4000,
         "consistency_lambda": 1.0,
