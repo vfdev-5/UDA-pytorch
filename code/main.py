@@ -84,13 +84,16 @@ def run(output_path, config):
                                   max_threshold=config['TSA_proba_max'])
 
     with_tsa = config['with_TSA']
+    with_UDA = not config['no_UDA']
 
     def uda_process_function(engine, labelled_batch):
-
-        unsup_x, unsup_aug_x = next(train_unlabelled_loader_iter)
+        
         x, y = _prepare_batch(labelled_batch, device=device, non_blocking=True)
-        unsup_x = convert_tensor(unsup_x, device=device, non_blocking=True)
-        unsup_aug_x = convert_tensor(unsup_aug_x, device=device, non_blocking=True)
+    
+        if with_UDA:
+            unsup_x, unsup_aug_x = next(train_unlabelled_loader_iter)
+            unsup_x = convert_tensor(unsup_x, device=device, non_blocking=True)
+            unsup_aug_x = convert_tensor(unsup_aug_x, device=device, non_blocking=True)
 
         model.train()
         # Supervised part        
@@ -99,7 +102,7 @@ def run(output_path, config):
 
         supervised_loss = loss
         step = engine.state.iteration - 1
-        if with_tsa:
+        if with_tsa and with_UDA:
             new_y_pred, new_y = tsa(y_pred, y, step=step)
             new_loss = criterion(new_y_pred, new_y)
 
@@ -111,36 +114,41 @@ def run(output_path, config):
             supervised_loss = new_loss
 
         # Unsupervised part
-        unsup_orig_y_pred = model(unsup_x).detach()
-        unsup_orig_y_probas = torch.softmax(unsup_orig_y_pred, dim=-1)
+        if with_UDA:
+            unsup_orig_y_pred = model(unsup_x).detach()
+            unsup_orig_y_probas = torch.softmax(unsup_orig_y_pred, dim=-1)
 
-        unsup_aug_y_pred = model(unsup_aug_x)
-        unsup_aug_y_probas = torch.log_softmax(unsup_aug_y_pred, dim=-1)
+            unsup_aug_y_pred = model(unsup_aug_x)
+            unsup_aug_y_probas = torch.log_softmax(unsup_aug_y_pred, dim=-1)
 
-        consistency_loss = consistency_criterion(unsup_aug_y_probas, unsup_orig_y_probas)
+            consistency_loss = consistency_criterion(unsup_aug_y_probas, unsup_orig_y_probas)
 
-        final_loss = supervised_loss + lam * consistency_loss
+        final_loss = supervised_loss
+        
+        if with_UDA:
+            final_loss += lam * consistency_loss
 
         optimizer.zero_grad()
         final_loss.backward()
         optimizer.step()
 
         return {
-            'supervised batch loss': new_loss.item(),
-            'consistency batch loss': consistency_loss.item(),
+            'supervised batch loss': supervised_loss.item(),
+            'consistency batch loss': consistency_loss.item() if with_UDA else 0.0,
             'final batch loss': final_loss.item(),
         }    
 
     trainer = Engine(uda_process_function)
 
-    @trainer.on(Events.ITERATION_COMPLETED)
-    def log_tsa(engine):
-        step = engine.state.iteration - 1
-        if step % 50 == 0:
-            mlflow.log_metric("TSA threshold", tsa.thresholds[step].item(), step=step)
-            mlflow.log_metric("TSA selection", engine.state.tsa_log['new_y_pred'].shape[0], step=step)
-            mlflow.log_metric("Original X Loss", engine.state.tsa_log['loss'], step=step)
-            mlflow.log_metric("TSA X Loss", engine.state.tsa_log['tsa_loss'], step=step)
+    if with_UDA and with_tsa:
+        @trainer.on(Events.ITERATION_COMPLETED)
+        def log_tsa(engine):
+            step = engine.state.iteration - 1
+            if step % 50 == 0:
+                mlflow.log_metric("TSA threshold", tsa.thresholds[step].item(), step=step)
+                mlflow.log_metric("TSA selection", engine.state.tsa_log['new_y_pred'].shape[0], step=step)
+                mlflow.log_metric("Original X Loss", engine.state.tsa_log['loss'], step=step)
+                mlflow.log_metric("TSA X Loss", engine.state.tsa_log['tsa_loss'], step=step)
 
     trainer.add_event_handler(Events.ITERATION_COMPLETED, lambda engine: scheduler.step())
 
@@ -274,6 +282,8 @@ if __name__ == "__main__":
         "with_TSA": True,
         "TSA_proba_min": 0.1,
         "TSA_proba_max": 1.0,
+
+        "no_UDA": False,  # disable UDA training 
     }
 
     # Override config:

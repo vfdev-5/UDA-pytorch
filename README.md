@@ -41,20 +41,33 @@ export MLFLOW_TRACKING_URI=$OUTPUT_PATH/mlruns
 mlflow experiments create -n CIFAR10
 ```
 
+Implementation details:
+- Models
+  - FastResnet inspired from [cifar10-fast repository](https://github.com/davidcpage/cifar10-fast)
+  - Wide-ResNet 28-2 from [Wide-ResNet repository](https://github.com/szagoruyko/wide-residual-networks/blob/master/pytorch/resnet.py)
+
+- Consistency loss: KL
+- Data augs: AutoAugment + Cutout
+- Cosine LR decay
+- Training Signal Annealing
+
+#### Fast ResNet
 Start a single run
 
 ```
 export MLFLOW_TRACKING_URI=$OUTPUT_PATH/mlruns
 
-mlflow run experiments/ --experiment-name=CIFAR10 -P dataset=CIFAR10 -P network=fastresnet -P params="data_path=../input/cifar10;num_epochs=100;learning_rate=0.01;batch_size=512;TSA_proba_min=0.2"
+mlflow run experiments/ --experiment-name=CIFAR10 -P dataset=CIFAR10 -P network=fastresnet -P params="data_path=../input/cifar10;num_epochs=100;learning_rate=0.01;batch_size=512;TSA_proba_min=0.5;unlabelled_batch_size=1024"
 ```
 
-Current implementation :
-- Model : FastResnet inspired from [cifar10-fast repository](https://github.com/davidcpage/cifar10-fast) (original paper uses Wide-ResNet)
-- Consistency loss: KL
-- Data augs: AutoAugment + Cutout
-- Cosine LR decay
-- Training Signal Annealing
+#### Wide ResNet
+Start a single run
+
+```
+export MLFLOW_TRACKING_URI=$OUTPUT_PATH/mlruns
+
+mlflow run experiments/ --experiment-name=CIFAR10 -P dataset=CIFAR10 -P network=wideresnet -P params="data_path=../input/cifar10;num_epochs=100;learning_rate=0.1;batch_size=512;TSA_proba_min=0.1;unlabelled_batch_size=1024"
+```
 
 ### Tensorboard 
 
@@ -69,5 +82,6 @@ tensorboard --logdir=$OUTPUT_PATH/mlruns/1
 In this repository we are using the code from 
 - [DeepVoltaire/AutoAugment](https://github.com/DeepVoltaire/AutoAugment) 
 - [cifar10-fast repository](https://github.com/davidcpage/cifar10-fast)
+- [Wide-ResNet repository](https://github.com/szagoruyko/wide-residual-networks/blob/master/pytorch/resnet.py)
 
 Thanks to the authors for sharing their code!

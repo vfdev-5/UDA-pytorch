@@ -7,6 +7,7 @@ from torchvision.transforms import Compose, ToTensor, Normalize, Pad, RandomCrop
 
 from cifar.datasets import get_train_test_datasets as get_cifar_train_test_datasets
 from cifar import fastresnet
+from cifar import wideresnet
 
 from utils import autoaugment
 from utils.transforms import RandomErasing
@@ -85,6 +86,8 @@ def get_model(name):
         fn = models.__dict__[name]
     elif name in fastresnet.__dict__:
         fn = fastresnet.__dict__[name]
+    elif name in wideresnet.__dict__:
+        fn = wideresnet.__dict__[name]
     else:
         raise RuntimeError("Unknown model name {}".format(name))
 
