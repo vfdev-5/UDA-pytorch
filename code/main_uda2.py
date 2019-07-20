@@ -45,12 +45,12 @@ def run(output_path, config):
 
     model = get_model(config['model'])
     model = model.to(device)
-    
+
     optimizer = optim.SGD(model.parameters(), lr=config['learning_rate'],
                           momentum=config['momentum'],
                           weight_decay=config['weight_decay'],
                           nesterov=True)
-    
+
     criterion = nn.CrossEntropyLoss().to(device)
     if config['consistency_criterion'] == "MSE":
         consistency_criterion = nn.MSELoss()
@@ -69,11 +69,13 @@ def run(output_path, config):
     eta_min = lr * config['min_lr_ratio']
     num_warmup_steps = config['num_warmup_steps']
 
-    cosine_lr_decay = CosineAnnealingLR(optimizer, eta_min=eta_min, T_max=num_train_steps - num_warmup_steps)
-    lr_scheduler = create_lr_scheduler_with_warmup(cosine_lr_decay,
-                                                   warmup_start_value=0.0,
-                                                   warmup_end_value=lr * (1.0 + 1.0 / num_warmup_steps),
-                                                   warmup_duration=num_warmup_steps)
+    lr_scheduler = CosineAnnealingLR(optimizer, eta_min=eta_min, T_max=num_train_steps - num_warmup_steps)
+
+    if num_warmup_steps > 0:
+        lr_scheduler = create_lr_scheduler_with_warmup(lr_scheduler,
+                                                       warmup_start_value=0.0,
+                                                       warmup_end_value=lr * (1.0 + 1.0 / num_warmup_steps),
+                                                       warmup_duration=num_warmup_steps)
 
     def _prepare_batch(batch, device, non_blocking):
         x, y = batch
@@ -90,9 +92,9 @@ def run(output_path, config):
     train2_unsup_loader_iter = cycle(train2_unsup_loader)
 
     lam = config['consistency_lambda']
-    
+
     tsa = TrainingSignalAnnealing(num_steps=num_train_steps,
-                                  min_threshold=config['TSA_proba_min'], 
+                                  min_threshold=config['TSA_proba_min'],
                                   max_threshold=config['TSA_proba_max'])
 
     with_tsa = config['with_TSA']
@@ -106,14 +108,14 @@ def run(output_path, config):
         loss = criterion(y_pred, y)
         supervised_loss = loss
 
-        if with_tsa: 
+        if with_tsa:
             step = engine.state.iteration - 1
             new_y_pred, new_y = tsa(y_pred, y, step=step)
             supervised_loss = criterion(new_y_pred, new_y)
             engine.state.tsa_log = {
                 "new_y_pred": new_y_pred,
                 "loss": loss.item(),
-                "tsa_loss": supervised_loss.item() 
+                "tsa_loss": supervised_loss.item()
             }
 
         return supervised_loss
@@ -137,25 +139,24 @@ def run(output_path, config):
 
         model.train()
         optimizer.zero_grad()
-        
-        if le // 2 < (engine.state.iteration % le) < le:
-            unsup_train_batch = next(train1_unsup_loader_iter)
-            train1_loss = compute_unsupervised_loss(engine, unsup_train_batch)
-        else:
-            sup_train_batch = next(train1_sup_loader_iter)
-            train1_loss = compute_supervised_loss(engine, sup_train_batch)
+
+        unsup_train_batch = next(train1_unsup_loader_iter)
+        train1_unsup_loss = compute_unsupervised_loss(engine, unsup_train_batch)
+
+        sup_train_batch = next(train1_sup_loader_iter)
+        train1_sup_loss = compute_supervised_loss(engine, sup_train_batch)
 
         unsup_test_batch = next(train2_unsup_loader_iter)
         train2_loss = compute_unsupervised_loss(engine, unsup_test_batch)
 
-        final_loss = train1_loss + lam * train2_loss
+        final_loss = train1_sup_loss + lam * (train1_unsup_loss + train2_loss)
         final_loss.backward()
 
         optimizer.step()
 
         return {
-            'supervised batch loss': train1_loss,
-            'consistency batch loss': train2_loss,
+            'supervised batch loss': train1_sup_loss,
+            'consistency batch loss': train2_loss + train1_unsup_loss,
             'final batch loss': final_loss.item(),
         }
 
@@ -170,8 +171,11 @@ def run(output_path, config):
                 mlflow.log_metric("TSA selection", engine.state.tsa_log['new_y_pred'].shape[0], step=step)
                 mlflow.log_metric("Original X Loss", engine.state.tsa_log['loss'], step=step)
                 mlflow.log_metric("TSA X Loss", engine.state.tsa_log['tsa_loss'], step=step)
-    
-    trainer.add_event_handler(Events.ITERATION_STARTED, lr_scheduler)
+
+    if not hasattr(lr_scheduler, "step"):
+        trainer.add_event_handler(Events.ITERATION_STARTED, lr_scheduler)
+    else:
+        trainer.add_event_handler(Events.ITERATION_STARTED, lambda engine: lr_scheduler.step())
 
     @trainer.on(Events.ITERATION_STARTED)
     def log_learning_rate(engine):
@@ -187,7 +191,7 @@ def run(output_path, config):
     ]
 
     def output_transform(x, name):
-        return x[name]    
+        return x[name]
 
     for n in metric_names:
         RunningAverage(output_transform=partial(output_transform, name=n), epoch_bound=False).attach(trainer, n)
@@ -210,7 +214,7 @@ def run(output_path, config):
 
     evaluator = create_supervised_evaluator(model, metrics=metrics, device=device, non_blocking=True)
     train_evaluator = create_supervised_evaluator(model, metrics=metrics, device=device, non_blocking=True)
-    
+
     def run_validation(engine, val_interval):
         if (engine.state.epoch - 1) % val_interval == 0:
             train_evaluator.run(train1_sup_loader)
@@ -253,7 +257,6 @@ def run(output_path, config):
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser("Training a CNN on a dataset")
-    
     parser.add_argument('dataset', type=str, choices=['CIFAR10', 'CIFAR100'],
                         help="Training/Testing dataset")
 
@@ -294,7 +297,7 @@ if __name__ == "__main__":
         
         "learning_rate": 0.03,
         "min_lr_ratio": 0.004,
-        "num_warmup_steps": 20000,
+        "num_warmup_steps": 0,
 
         "num_labelled_samples": 4000,
         "consistency_lambda": 1.0,

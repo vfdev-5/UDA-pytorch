@@ -77,6 +77,14 @@ export MLFLOW_TRACKING_URI=$OUTPUT_PATH/mlruns
 mlflow run experiments/ --experiment-name=CIFAR10 -P dataset=CIFAR10 -P network=wideresnet -P params="data_path=../input/cifar10;num_epochs=6250;learning_rate=0.03;batch_size=64;TSA_proba_min=0.1;unlabelled_batch_size=320;"
 ```
 
+#### Updated version of UDA
+
+```
+export MLFLOW_TRACKING_URI=$OUTPUT_PATH/mlruns
+
+mlflow run experiments/ -e main_uda2 --experiment-name=CIFAR10 -P dataset=CIFAR10 -P network=fastresnet -P params="data_path=../input/cifar10;num_epochs=100;learning_rate=0.08;batch_size=512;unlabelled_batch_size=512"
+```
+
 ### Tensorboard 
 
 All experiments are also logged to the Tensorboard. To visualize the experiments, please install `tensorboard` and run :

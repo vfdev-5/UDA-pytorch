@@ -161,7 +161,10 @@ def run(output_path, config):
                 mlflow.log_metric("Original X Loss", engine.state.tsa_log['loss'], step=step)
                 mlflow.log_metric("TSA X Loss", engine.state.tsa_log['tsa_loss'], step=step)
     
-    trainer.add_event_handler(Events.ITERATION_STARTED, lr_scheduler)
+    if not hasattr(lr_scheduler, "step"):
+        trainer.add_event_handler(Events.ITERATION_STARTED, lr_scheduler)
+    else:
+        trainer.add_event_handler(Events.ITERATION_STARTED, lambda engine: lr_scheduler.step())
 
     @trainer.on(Events.ITERATION_STARTED)
     def log_learning_rate(engine):
