@@ -11,3 +11,11 @@ entry_points:
       params: string
 
     command: "PYTHONPATH=../code:$PYTHONPATH python ../code/main.py {dataset} {network} --params {params}"
+
+  main_uda2:
+    parameters:      
+      dataset: string
+      network: string
+      params: string
+
+    command: "PYTHONPATH=../code:$PYTHONPATH python ../code/main_uda2.py {dataset} {network} --params {params}"
