@@ -54,13 +54,15 @@ def run(output_path, config):
                           weight_decay=config['weight_decay'],
                           nesterov=True)
     
-    criterion = nn.CrossEntropyLoss()
+    criterion = nn.CrossEntropyLoss().to(device)
     if config['consistency_criterion'] == "MSE":
         consistency_criterion = nn.MSELoss()
     elif config['consistency_criterion'] == "KL":
         consistency_criterion = nn.KLDivLoss(reduction='batchmean')
     else:
         raise RuntimeError("Unknown consistency criterion {}".format(config['consistency_criterion']))
+    
+    consistency_criterion = consistency_criterion.to(device)
 
     le = len(train_labelled_loader)
     num_train_steps = le * config['num_epochs']
@@ -70,11 +72,13 @@ def run(output_path, config):
     eta_min = lr * config['min_lr_ratio']
     num_warmup_steps = config['num_warmup_steps']
 
-    cosine_lr_decay = CosineAnnealingLR(optimizer, eta_min=eta_min, T_max=num_train_steps - num_warmup_steps)
-    lr_scheduler = create_lr_scheduler_with_warmup(cosine_lr_decay,
-                                                   warmup_start_value=0.0,
-                                                   warmup_end_value=lr * (1.0 + 1.0 / num_warmup_steps),
-                                                   warmup_duration=num_warmup_steps)
+    lr_scheduler = CosineAnnealingLR(optimizer, eta_min=eta_min, T_max=num_train_steps - num_warmup_steps)
+
+    if num_warmup_steps > 0:
+        lr_scheduler = create_lr_scheduler_with_warmup(lr_scheduler,
+                                                       warmup_start_value=0.0,
+                                                       warmup_end_value=lr * (1.0 + 1.0 / num_warmup_steps),
+                                                       warmup_duration=num_warmup_steps)
 
     def _prepare_batch(batch, device, non_blocking):
         x, y = batch
@@ -185,8 +189,6 @@ def run(output_path, config):
     for n in metric_names:
         RunningAverage(output_transform=partial(output_transform, name=n), epoch_bound=False).attach(trainer, n)
 
-    # ProgressBar(persist=False).attach(trainer, metric_names=metric_names)
-
     ProgressBar(persist=True, bar_format="").attach(trainer,
                                                     event_name=Events.EPOCH_STARTED,
                                                     closing_event_name=Events.COMPLETED)
@@ -288,7 +290,7 @@ if __name__ == "__main__":
         
         "learning_rate": 0.03,
         "min_lr_ratio": 0.004,
-        "num_warmup_steps": 20000,
+        "num_warmup_steps": 0,
 
         "num_labelled_samples": 4000,
         "consistency_lambda": 1.0,

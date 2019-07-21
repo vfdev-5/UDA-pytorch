@@ -51,13 +51,16 @@ Implementation details:
 - Cosine LR decay
 - Training Signal Annealing
 
+- Updated UDA version: see [main_uda2.py](code/main_uda2.py)
+  - training 4k batchs are also passed into unsupervised learning part
+
 #### Fast ResNet
 Start a single run
 
 ```
 export MLFLOW_TRACKING_URI=$OUTPUT_PATH/mlruns
 
-mlflow run experiments/ --experiment-name=CIFAR10 -P dataset=CIFAR10 -P network=fastresnet -P params="data_path=../input/cifar10;num_epochs=100;learning_rate=0.01;batch_size=512;TSA_proba_min=0.5;unlabelled_batch_size=1024"
+mlflow run experiments/ --experiment-name=CIFAR10 -P dataset=CIFAR10 -P network=fastresnet -P params="data_path=../input/cifar10;num_epochs=100;learning_rate=0.08;batch_size=512;TSA_proba_min=0.5;unlabelled_batch_size=1024"
 ```
 
 #### Wide ResNet
@@ -77,6 +80,8 @@ export MLFLOW_TRACKING_URI=$OUTPUT_PATH/mlruns
 mlflow run experiments/ --experiment-name=CIFAR10 -P dataset=CIFAR10 -P network=wideresnet -P params="data_path=../input/cifar10;num_epochs=6250;learning_rate=0.03;batch_size=64;TSA_proba_min=0.1;unlabelled_batch_size=320;"
 ```
 
+Unfortunately, I can not reproduce paper's result with 5.3 test error.
+
 #### Updated version of UDA
 
 ```
@@ -84,6 +89,11 @@ export MLFLOW_TRACKING_URI=$OUTPUT_PATH/mlruns
 
 mlflow run experiments/ -e main_uda2 --experiment-name=CIFAR10 -P dataset=CIFAR10 -P network=fastresnet -P params="data_path=../input/cifar10;num_epochs=100;learning_rate=0.08;batch_size=512;unlabelled_batch_size=512"
 ```
+
+#### Some results
+
+![fastresnet_uda_vs_uda2](assets/fastresnet_uda_vs_uda2.png)
+
 
 ### Tensorboard 
 
