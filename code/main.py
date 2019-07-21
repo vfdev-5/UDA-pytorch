@@ -16,6 +16,8 @@ import torch.nn as nn
 import torch.optim as optim
 from torch.optim.lr_scheduler import CosineAnnealingLR
 
+import torchcontrib
+
 import ignite
 from ignite.engine import Events, Engine, create_supervised_evaluator
 from ignite.metrics import Accuracy, Loss, RunningAverage
@@ -53,7 +55,11 @@ def run(output_path, config):
                           momentum=config['momentum'],
                           weight_decay=config['weight_decay'],
                           nesterov=True)
-    
+
+    with_SWA = config['with_SWA']
+    if with_SWA:
+        optimizer = torchcontrib.optim.SWA(optimizer)
+
     criterion = nn.CrossEntropyLoss().to(device)
     if config['consistency_criterion'] == "MSE":
         consistency_criterion = nn.MSELoss()
@@ -176,6 +182,17 @@ def run(output_path, config):
         if step % 50 == 0:
             lr = optimizer.param_groups[0]['lr']
             mlflow.log_metric("learning rate", lr, step=step)
+
+    if with_SWA:
+        @trainer.on(Events.COMPLETED)
+        def swap_swa_sgd(engine):
+            optimizer.swap_swa_sgd()
+            optimizer.bn_update(train_labelled_loader, model)
+
+        @trainer.on(Events.EPOCH_COMPLETED)
+        def update_swa(engine):
+            if engine.state.epoch - 1 > int(num_epochs * 0.75): 
+                optimizer.update_swa()
 
     metric_names = [
         'supervised batch loss',
@@ -301,6 +318,8 @@ if __name__ == "__main__":
         "TSA_proba_max": 1.0,
 
         "no_UDA": False,  # disable UDA training 
+
+        "with_SWA": False,
     }
 
     # Override config:

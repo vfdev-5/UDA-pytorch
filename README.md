@@ -77,7 +77,7 @@ mlflow run experiments/ --experiment-name=CIFAR10 -P dataset=CIFAR10 -P network=
 ```
 export MLFLOW_TRACKING_URI=$OUTPUT_PATH/mlruns
 
-mlflow run experiments/ --experiment-name=CIFAR10 -P dataset=CIFAR10 -P network=wideresnet -P params="data_path=../input/cifar10;num_epochs=6250;learning_rate=0.03;batch_size=64;TSA_proba_min=0.1;unlabelled_batch_size=320;"
+mlflow run experiments/ --experiment-name=CIFAR10 -P dataset=CIFAR10 -P network=wideresnet -P params="data_path=../input/cifar10;num_epochs=6250;learning_rate=0.03;batch_size=64;TSA_proba_min=0.1;unlabelled_batch_size=320;num_warmup_steps=20000"
 ```
 
 Unfortunately, I can not reproduce paper's result with 5.3 test error.

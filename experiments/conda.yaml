@@ -14,3 +14,4 @@ dependencies:
     - tensorboardX
     - nested_dict
     - git+https://github.com/pytorch/ignite.git
+    - torchcontrib
