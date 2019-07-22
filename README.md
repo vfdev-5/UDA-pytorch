@@ -1,7 +1,5 @@
 # Unsupervised Data Augmentation experiments in PyTorch
 
-**~~~ /!\ Work in Progress /!\ ~~~**
-
 Experiments with "Unsupervised Data Augmentation" method on Cifar10 dataset.
 
 Based on ["Unsupervised Data Augmentation"](https://arxiv.org/pdf/1904.12848.pdf)
